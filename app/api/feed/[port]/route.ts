@@ -79,10 +79,15 @@ export async function GET(
       for (const day of json.data) {
         if (!day.extrema || !Array.isArray(day.extrema)) continue;
 
+        // 1. Tri chronologique rigoureux des extrema de la journée
+        const sortedExtrema = [...day.extrema].sort((a, b) => 
+          (a.time || "").localeCompare(b.time || "")
+        );
+
         let filteredExtrema: ExtremaItem[] = [];
         
-        // Sécurité : filtre les extrema aberrants (évite 2 marées à < 2h d'intervalle)
-        for (const ext of day.extrema) {
+        // 2. Sécurité : filtre les extrema aberrants (< 2h d'intervalle)
+        for (const ext of sortedExtrema) {
           if (!ext.time) continue;
           const [h, m] = ext.time.split(":").map(Number);
           const currentTotalMinutes = h * 60 + m;
@@ -92,7 +97,6 @@ export async function GET(
             const [lh, lm] = lastExt.time.split(":").map(Number);
             const lastTotalMinutes = lh * 60 + lm;
 
-            // Si l'écart est inférieur à 120 minutes (2h), on ignore l'anomalie
             if (currentTotalMinutes - lastTotalMinutes < 120) {
               continue;
             }
