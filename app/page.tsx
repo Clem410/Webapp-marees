@@ -74,13 +74,7 @@ export default function MareesApp() {
           {/* Header */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 text-2xl mb-1 shadow-inner">
-              <Image 
-                src={icon.svg} 
-                alt="Marées Sync" 
-                width={24} 
-                height={24} 
-                className="w-6 h-6" 
-               />
+              🌊
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-blue-400 bg-clip-text text-transparent">
               Marées Sync
