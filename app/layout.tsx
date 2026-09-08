@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next"; // 1. Importer le package
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,8 @@ export default function RootLayout({
     <html lang="fr">
       <body className="bg-slate-950 text-white antialiased">
         {children}
-        <Analytics /> {/* 2. Ajouter le composant ici */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
