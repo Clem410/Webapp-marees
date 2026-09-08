@@ -138,6 +138,9 @@ export default function MareesApp() {
           <p className="text-[11px] leading-relaxed text-slate-500">
             Données de marée fournies par api-maree.fr sous licence CC BY, calculées à partir de composantes harmoniques Ifremer / PREVIMER, elles-mêmes sous licence CC BY.
           </p>
+          <p className="text-[11px] font-medium text-slate-400">
+            © 2026 Clément Saux. All rights reserved.
+          </p>
         </div>
 
       </div>
