@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server";
 import { createEvents, EventAttributes } from "ics";
-import { PORTS } from "@/lib/ports";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ port: string }> }
 ): Promise<Response> {
-  const { port } = await params;
-
-  const foundPort = PORTS.find((p) => p.id === port);
-  if (!foundPort) {
-    return new NextResponse("Port non trouvé", { status: 404 });
-  }
-
-  const portName = foundPort.name;
-  const apiId = foundPort.apiId;
+  const { port: siteId } = await params;
   const apiKey = process.env.API_MAREE_KEY;
 
   if (!apiKey) {
@@ -32,11 +23,10 @@ export async function GET(
   const toDate = futureDate.toISOString().split("T")[0];
 
   try {
-    const url = `https://api-maree.fr/tide-extrema?site=${apiId}&from=${fromDate}&to=${toDate}&tz=Europe/Paris&key=${apiKey}`;
+    const url = `https://api-maree.fr/tide-extrema?site=${siteId}&from=${fromDate}&to=${toDate}&tz=Europe/Paris&key=${apiKey}`;
     
-    // Requête vers l'API externe avec mise en cache Next.js (12h)
     const response = await fetch(url, {
-      next: { revalidate: 43200 },
+      next: { revalidate: 43200 }, // Cache 12h
     });
 
     if (!response.ok) {
@@ -45,6 +35,7 @@ export async function GET(
 
     const json = await response.json();
     const portTides = json.data || [];
+    const portName = siteId; // Nom par défaut, ou nettoyé si besoin
 
     const tidesData: EventAttributes[] = [];
 
@@ -79,9 +70,7 @@ export async function GET(
       createEvents(tidesData, (error, value) => {
         if (error || !value) {
           resolve(
-            new NextResponse("Erreur lors de la génération du calendrier", {
-              status: 500,
-            })
+            new NextResponse("Erreur lors de la génération du calendrier", { status: 500 })
           );
           return;
         }
@@ -91,7 +80,7 @@ export async function GET(
             status: 200,
             headers: {
               "Content-Type": "text/calendar; charset=utf-8",
-              "Content-Disposition": `inline; filename="marees-${port}.ics"`,
+              "Content-Disposition": `inline; filename="marees-${siteId}.ics"`,
               "Cache-Control": "s-maxage=43200, stale-while-revalidate=86400",
             },
           })
@@ -100,8 +89,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("Erreur de récupération des marées :", error);
-    return new NextResponse("Impossible de récupérer les données de marée", {
-      status: 500,
-    });
+    return new NextResponse("Impossible de récupérer les données de marée", { status: 500 });
   }
 }
