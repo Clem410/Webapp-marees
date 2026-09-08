@@ -1,115 +1,121 @@
-"use client"; // Si tu es en Next.js App Router avec du state client, utilise "use client" au sommet
+"use client";
 
 import { useState, useEffect } from "react";
 
-interface Site {
+interface Port {
   site_id: string;
   site_name: string;
-  latitude: number;
-  longitude: number;
 }
 
-export default function Home() {
-  const [sites, setSites] = useState<Site[]>([]);
+export default function MareesApp() {
+  const [ports, setPorts] = useState<Port[]>([]);
   const [search, setSearch] = useState("");
-  const [selectedSite, setSelectedSite] = useState<string>("");
+  const [selectedPortId, setSelectedPortId] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // 1. Chargement de la liste exhaustive au démarrage
   useEffect(() => {
-    fetch("/api/sites")
+    fetch("https://api-maree.fr/sites")
       .then((res) => res.json())
       .then((data) => {
-        if (data.sites) {
-          setSites(data.sites);
-          if (data.sites.length > 0) setSelectedSite(data.sites[0].site_id);
-        }
+        // L'API renvoie un objet avec la clé "sites"
+        const list = Array.isArray(data) ? data : data.sites || [];
+        setPorts(list);
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Erreur chargement des sites", err);
+        console.error("Erreur de chargement des ports", err);
         setLoading(false);
       });
   }, []);
 
-  // Filtrer les ports selon la recherche textuelle
-  const filteredSites = sites.filter((site) =>
-    site.site_name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const feedUrl = typeof window !== "undefined" ? `${window.location.origin}/api/feed/${selectedSite}` : "";
-  const webcalUrl = feedUrl.replace(/^https?:\/\//, "webcal://");
+  // 2. Filtrage dynamique + Tri alphabétique français
+  const filteredPorts = ports
+    .filter((port) =>
+      (port.site_name || "").toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) =>
+      (a.site_name || "").localeCompare(b.site_name || "", "fr", {
+        sensitivity: "base",
+      })
+    );
 
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6">
-      <div className="max-w-xl w-full bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700">
-        <h1 className="text-3xl font-bold mb-2 text-center">🌊 Marées Sync</h1>
-        <p className="text-slate-400 text-center mb-6">
+    <div className="max-w-xl mx-auto p-6 bg-slate-900 text-slate-100 rounded-xl shadow-xl border border-slate-700 mt-10">
+      <div className="text-center mb-6">
+        <h1 className="text-2xl font-bold flex items-center justify-center gap-2">
+          🌊 Marées Sync
+        </h1>
+        <p className="text-sm text-slate-400 mt-1">
           Synchronisez les 30 jours glissants de marées de n'importe quel port français dans votre agenda.
         </p>
+      </div>
 
-        {loading ? (
-          <p className="text-center py-8 text-slate-400 animate-pulse">Chargement de la liste exhaustive des ports...</p>
-        ) : (
-          <div className="space-y-6">
-            {/* Barre de recherche textuelle */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                1. Rechercher votre port (ex: La Rochelle, Brest, Arcachon...)
-              </label>
-              <input
-                type="text"
-                placeholder="Tapez un nom de port..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-white"
-              />
-            </div>
+      <div className="space-y-4">
+        {/* Étape 1 : Recherche textuelle optionnelle pour filtrer */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            1. Rechercher votre port (ex: La Rochelle, Brest, Arcachon...)
+          </label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tapez pour filtrer..."
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+          />
+        </div>
 
-            {/* Liste déroulante filtrée */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                2. Sélectionner dans la liste ({filteredSites.length} trouvés)
-              </label>
-              <select
-                value={selectedSite}
-                onChange={(e) => setSelectedSite(e.target.value)}
-                size={6} // Affiche une petite boîte liste pour voir plusieurs choix d'un coup
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-white overflow-y-auto"
+        {/* Étape 2 : Liste déroulante complète et interactive */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            2. Sélectionner dans la liste ({filteredPorts.length} port{filteredPorts.length > 1 ? 's' : ''} disponible{filteredPorts.length > 1 ? 's' : ''})
+          </label>
+          <select
+            value={selectedPortId}
+            onChange={(e) => setSelectedPortId(e.target.value)}
+            disabled={loading}
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+          >
+            <option value="">
+              {loading ? "Chargement des ports..." : "-- Choisir un port --"}
+            </option>
+            {filteredPorts.map((port) => (
+              <option key={port.site_id} value={port.site_id}>
+                {port.site_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Actions conditionnelles si un port est sélectionné */}
+        {selectedPortId && (
+          <div className="mt-6 p-4 bg-slate-800 border border-slate-700 rounded-lg space-y-3">
+            <h3 className="font-semibold text-blue-400">Actions pour le port sélectionné</h3>
+            <div className="flex gap-3 flex-wrap">
+              <a
+                href={`https://api-maree.fr/v1/ics/${selectedPortId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
               >
-                {filteredSites.map((site) => (
-                  <option key={site.site_id} value={site.site_id} className="py-1 px-2 hover:bg-blue-600 rounded">
-                    {site.site_name}
-                  </option>
-                ))}
-              </select>
+                Télécharger le fichier .ics
+              </a>
+              <a
+                href={`webcal://api-maree.fr/v1/ics/${selectedPortId}`}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition"
+              >
+                S'abonner via URL Agenda
+              </a>
             </div>
-
-            {/* Actions de téléchargement / abonnement */}
-            {selectedSite && (
-              <div className="pt-4 border-t border-slate-700 space-y-3">
-                <a
-                  href={webcalUrl}
-                  className="block w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-medium text-center rounded-lg transition shadow-lg"
-                >
-                  📅 S'abonner au calendrier (Webcal)
-                </a>
-                <a
-                  href={`/api/feed/${selectedSite}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full py-3 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-center rounded-lg transition"
-                >
-                  📥 Télécharger le fichier .ics direct
-                </a>
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      <footer className="mt-8 text-xs text-slate-500 text-center">
+      {/* Message légal d'origine en bas de page */}
+      <div className="mt-8 pt-4 border-t border-slate-800 text-center text-xs text-slate-500">
         Données fournies par api-maree.fr • CC BY Ifremer/PREVIMER
-      </footer>
-    </main>
+      </div>
+    </div>
   );
 }
