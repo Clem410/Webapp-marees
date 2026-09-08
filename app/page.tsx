@@ -13,6 +13,7 @@ export default function MareesApp() {
   const [search, setSearch] = useState("");
   const [selectedPortId, setSelectedPortId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch("https://api-maree.fr/sites")
@@ -39,6 +40,16 @@ export default function MareesApp() {
     );
 
   const currentHost = typeof window !== "undefined" ? window.location.host : "";
+  const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
+  
+  const feedUrl = `${protocol}//${currentHost}/api/feed/${selectedPortId}`;
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(feedUrl)}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(feedUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
@@ -133,21 +144,35 @@ export default function MareesApp() {
                     Options de synchronisation
                   </h3>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+                
+                <div className="flex flex-col gap-2.5">
+                  {/* Bouton Téléchargement .ics */}
                   <a
                     href={`/api/feed/${selectedPortId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-600/20 transition-all duration-200"
+                    className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-600/20 transition-all duration-200"
                   >
-                    📥 Télécharger .ics
+                    📥 Télécharger le fichier .ics
                   </a>
+
+                  {/* Bouton Google Calendar */}
                   <a
-                    href={`webcal://${currentHost}/api/feed/${selectedPortId}`}
-                    className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200"
+                    href={googleCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-emerald-600/20 transition-all duration-200"
                   >
-                    📅 S'abonner (Webcal)
+                    🌐 S'abonner sur Google Calendar
                   </a>
+
+                  {/* Bouton Copier le lien iCal avec confirmation visuelle */}
+                  <button
+                    onClick={handleCopyLink}
+                    className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200 cursor-pointer"
+                  >
+                    {copied ? "✅ Lien copié dans le presse-papier !" : "📋 Copier le lien iCal (Apple / Outlook)"}
+                  </button>
                 </div>
               </div>
             )}
