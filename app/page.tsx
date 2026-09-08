@@ -38,7 +38,6 @@ export default function MareesApp() {
       })
     );
 
-  // Récupération sécurisée du domaine courant côté client pour webcal
   const currentHost = typeof window !== "undefined" ? window.location.host : "";
 
   return (
@@ -71,7 +70,7 @@ export default function MareesApp() {
               Marées Sync
             </h1>
             <p className="text-sm text-slate-400 max-w-md mx-auto">
-              Synchronisez les 30 jours glissants de marées de n'importe quel port français directement dans votre agenda.
+              Synchronisez les marées de n'importe quel port français directement dans votre agenda.
             </p>
           </div>
 
