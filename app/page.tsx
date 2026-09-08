@@ -43,7 +43,6 @@ export default function MareesApp() {
   const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
   
   const feedUrl = `${protocol}//${currentHost}/api/feed/${selectedPortId}`;
-  const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(feedUrl)}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(feedUrl);
@@ -156,22 +155,12 @@ export default function MareesApp() {
                     📥 Télécharger le fichier .ics
                   </a>
 
-                  {/* Bouton Google Calendar */}
-                  <a
-                    href={googleCalendarUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-emerald-600/20 transition-all duration-200"
-                  >
-                    🌐 S'abonner sur Google Calendar
-                  </a>
-
-                  {/* Bouton Copier le lien iCal avec confirmation visuelle */}
+                  {/* Bouton Copier le lien iCal universel */}
                   <button
                     onClick={handleCopyLink}
                     className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200 cursor-pointer"
                   >
-                    {copied ? "✅ Lien copié dans le presse-papier !" : "📋 Copier le lien iCal (Apple / Outlook)"}
+                    {copied ? "✅ Lien copié dans le presse-papier !" : "📋 Copier le lien d'abonnement (Google, Apple, Outlook)"}
                   </button>
                 </div>
               </div>
