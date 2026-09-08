@@ -79,11 +79,31 @@ export async function GET(
       for (const day of json.data) {
         if (!day.extrema || !Array.isArray(day.extrema)) continue;
 
+        let filteredExtrema: ExtremaItem[] = [];
+        
+        // Sécurité : filtre les extrema aberrants (évite 2 marées à < 2h d'intervalle)
         for (const ext of day.extrema) {
+          if (!ext.time) continue;
+          const [h, m] = ext.time.split(":").map(Number);
+          const currentTotalMinutes = h * 60 + m;
+
+          if (filteredExtrema.length > 0) {
+            const lastExt = filteredExtrema[filteredExtrema.length - 1];
+            const [lh, lm] = lastExt.time.split(":").map(Number);
+            const lastTotalMinutes = lh * 60 + lm;
+
+            // Si l'écart est inférieur à 120 minutes (2h), on ignore l'anomalie
+            if (currentTotalMinutes - lastTotalMinutes < 120) {
+              continue;
+            }
+          }
+          filteredExtrema.push(ext);
+        }
+
+        for (const ext of filteredExtrema) {
           const [hours, minutes] = ext.time.split(":");
           const dtStartStr = `${day.date.replace(/-/g, "")}T${hours}${minutes}00`;
           
-          // Durée élargie à 30 minutes pour un meilleur rendu visuel dans les agendas
           const startDate = new Date(`${day.date}T${ext.time}:00`);
           const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
           const endHours = String(endDate.getHours()).padStart(2, "0");
@@ -94,7 +114,6 @@ export async function GET(
           const tideLabel = isPM ? "Pleine Mer" : "Basse Mer";
           const emoji = isPM ? "🌊" : "📉";
           
-          // Affiche le coefficient pour PM et BM s'il est présent dans l'objet
           const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== 0 && ext.coef !== ("" as any)) 
             ? ` (Coef ${ext.coef})` 
             : "";
