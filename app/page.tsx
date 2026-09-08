@@ -13,10 +13,8 @@ export default function MareesApp() {
   const [search, setSearch] = useState("");
   const [selectedPortId, setSelectedPortId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [origin, setOrigin] = useState("");
 
   useEffect(() => {
-    setOrigin(window.location.host);
     fetch("https://api-maree.fr/sites")
       .then((res) => res.json())
       .then((data) => {
@@ -39,6 +37,9 @@ export default function MareesApp() {
         sensitivity: "base",
       })
     );
+
+  // Récupération sécurisée du domaine courant côté client pour webcal
+  const currentHost = typeof window !== "undefined" ? window.location.host : "";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
@@ -143,7 +144,7 @@ export default function MareesApp() {
                     📥 Télécharger .ics
                   </a>
                   <a
-                    href={`webcal://${origin}/api/feed/${selectedPortId}`}
+                    href={`webcal://${currentHost}/api/feed/${selectedPortId}`}
                     className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200"
                   >
                     📅 S'abonner (Webcal)

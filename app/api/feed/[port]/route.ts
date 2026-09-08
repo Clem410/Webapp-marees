@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 
 export async function GET(
   request: Request,
-  { params }: { params: { port: string } }
+  { params }: { params: Promise<{ port: string }> | { port: string } }
 ) {
-  const siteId = params.port;
-  
-  // Calcul des 30 jours glissants (de aujourd'hui à J+30)
+  // Résolution sécurisée de params (compatible Next.js 14 et 15)
+  const resolvedParams = await params;
+  const siteId = resolvedParams.port;
+
+  if (!siteId) {
+    return new NextResponse("ID du port manquant", { status: 400 });
+  }
+
+  // Calcul des 30 jours glissants (aujourd'hui -> J+30)
   const today = new Date();
   const from = today.toISOString().split("T")[0];
   const future = new Date();
@@ -17,10 +23,15 @@ export async function GET(
     const apiRes = await fetch(
       `https://api-maree.fr/tide-extrema?site=${siteId}&from=${from}&to=${to}&tz=Europe/Paris`
     );
+    
+    if (!apiRes.ok) {
+      return new NextResponse("Erreur lors de la récupération des données de l'API externe", { status: 502 });
+    }
+
     const data = await apiRes.json();
 
-    if (!data || !data.data) {
-      return new NextResponse("Port introuvable ou données indisponibles", { status: 404 });
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      return new NextResponse("Format de données invalide pour ce port", { status: 404 });
     }
 
     const portName = data.site_name || siteId;
@@ -36,9 +47,12 @@ export async function GET(
     ];
 
     data.data.forEach((dayObj: any) => {
-      const dateStr = dayObj.date.replace(/-/g, ""); // YYYYMMDD
+      const dateStr = dayObj.date ? dayObj.date.replace(/-/g, "") : "";
+      if (!dateStr) return;
+
       if (dayObj.extrema && Array.isArray(dayObj.extrema)) {
         dayObj.extrema.forEach((ext: any, idx: number) => {
+          if (!ext.time) return;
           const [hours, minutes] = ext.time.split(":");
           const timeStr = `${hours}${minutes}00`;
           const dtstart = `${dateStr}T${timeStr}`;
@@ -83,7 +97,7 @@ export async function GET(
       },
     });
   } catch (err) {
-    console.error("Erreur API ICS", err);
+    console.error("Erreur critique API ICS :", err);
     return new NextResponse("Erreur interne du serveur", { status: 500 });
   }
 }
