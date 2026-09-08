@@ -19,6 +19,15 @@ interface TideApiResponse {
   data: DayData[];
 }
 
+interface FlatExtrema {
+  date: string;
+  time: string;
+  type: "PM" | "BM";
+  height: number;
+  coef?: number;
+  timestamp: number;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ port: string }> | { port: string } }
@@ -75,69 +84,98 @@ export async function GET(
       "X-WR-TIMEZONE:Europe/Paris",
     ];
 
+    let allExtrema: FlatExtrema[] = [];
+
+    // 1. Récupération et aplatissement global de tous les extrema de la période
     if (json.data && Array.isArray(json.data)) {
       for (const day of json.data) {
         if (!day.extrema || !Array.isArray(day.extrema)) continue;
-
-        // 1. Tri chronologique rigoureux des extrema de la journée
-        const sortedExtrema = [...day.extrema].sort((a, b) => 
-          (a.time || "").localeCompare(b.time || "")
-        );
-
-        let filteredExtrema: ExtremaItem[] = [];
-        
-        // 2. Sécurité : filtre les extrema aberrants (< 2h d'intervalle)
-        for (const ext of sortedExtrema) {
-          if (!ext.time) continue;
-          const [h, m] = ext.time.split(":").map(Number);
-          const currentTotalMinutes = h * 60 + m;
-
-          if (filteredExtrema.length > 0) {
-            const lastExt = filteredExtrema[filteredExtrema.length - 1];
-            const [lh, lm] = lastExt.time.split(":").map(Number);
-            const lastTotalMinutes = lh * 60 + lm;
-
-            if (currentTotalMinutes - lastTotalMinutes < 120) {
-              continue;
-            }
-          }
-          filteredExtrema.push(ext);
-        }
-
-        for (const ext of filteredExtrema) {
-          const [hours, minutes] = ext.time.split(":");
-          const dtStartStr = `${day.date.replace(/-/g, "")}T${hours}${minutes}00`;
-          
-          const startDate = new Date(`${day.date}T${ext.time}:00`);
-          const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
-          const endHours = String(endDate.getHours()).padStart(2, "0");
-          const endMinutes = String(endDate.getMinutes()).padStart(2, "0");
-          const endDateStr = `${day.date.replace(/-/g, "")}T${endHours}${endMinutes}00`;
-
-          const isPM = ext.type === "PM";
-          const tideLabel = isPM ? "Pleine Mer" : "Basse Mer";
-          const emoji = isPM ? "🌊" : "📉";
-          
-          const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== 0 && ext.coef !== ("" as any)) 
-            ? ` (Coef ${ext.coef})` 
-            : "";
-            
-          const summary = `${emoji} ${tideLabel}${coefText} : ${ext.height}m`;
-
-          const description = `${tideLabel} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
-
-          const uid = `${day.date}-${ext.type}-${ext.time}-${siteId}@webapp-marees`;
-
-          icsLines.push("BEGIN:VEVENT");
-          icsLines.push(`UID:${uid}`);
-          icsLines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`);
-          icsLines.push(`DTSTART;TZID=Europe/Paris:${dtStartStr}`);
-          icsLines.push(`DTEND;TZID=Europe/Paris:${endDateStr}`);
-          icsLines.push(`SUMMARY:${summary}`);
-          icsLines.push(`DESCRIPTION:${description}`);
-          icsLines.push("END:VEVENT");
+        for (const ext of day.extrema) {
+          if (!ext.time || !day.date) continue;
+          const timestamp = new Date(`${day.date}T${ext.time}:00`).getTime();
+          allExtrema.push({
+            date: day.date,
+            time: ext.time,
+            type: ext.type,
+            height: ext.height,
+            coef: ext.coef,
+            timestamp,
+          });
         }
       }
+    }
+
+    // 2. Tri chronologique global rigoureux
+    allExtrema.sort((a, b) => a.timestamp - b.timestamp);
+
+    // 3. Filtrage global anti-bruit (résout le jitter des petits coefficients)
+    let cleanedExtrema: FlatExtrema[] = [];
+    for (const ext of allExtrema) {
+      if (cleanedExtrema.length === 0) {
+        cleanedExtrema.push(ext);
+        continue;
+      }
+
+      const lastExt = cleanedExtrema[cleanedExtrema.length - 1];
+      const timeDiffMinutes = (ext.timestamp - lastExt.timestamp) / (1000 * 60);
+
+      // Si c'est le même type (ex: PM et PM)
+      if (ext.type === lastExt.type) {
+        // Deux marées du même type à moins de 10h (600 min) d'intervalle = artéfact de l'API sur courbe plate
+        if (timeDiffMinutes < 600) {
+          // On garde la plus prononcée (la plus haute pour une PM, la plus basse pour une BM)
+          if (ext.type === "PM" && ext.height > lastExt.height) {
+            cleanedExtrema[cleanedExtrema.length - 1] = ext;
+          } else if (ext.type === "BM" && ext.height < lastExt.height) {
+            cleanedExtrema[cleanedExtrema.length - 1] = ext;
+          }
+          continue;
+        }
+      } 
+      // Si ce sont des types alternés (PM et BM)
+      else {
+        // Un demi-cycle normal dure ~6h. Si moins de 3h (180 min), c'est du bruit.
+        if (timeDiffMinutes < 180) {
+          continue;
+        }
+      }
+
+      cleanedExtrema.push(ext);
+    }
+
+    // 4. Génération des événements iCal à partir de la liste nettoyée
+    for (const ext of cleanedExtrema) {
+      const [hours, minutes] = ext.time.split(":");
+      const dtStartStr = `${ext.date.replace(/-/g, "")}T${hours}${minutes}00`;
+      
+      const startDate = new Date(`${ext.date}T${ext.time}:00`);
+      const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+      const endHours = String(endDate.getHours()).padStart(2, "0");
+      const endMinutes = String(endDate.getMinutes()).padStart(2, "0");
+      const endDateStr = `${ext.date.replace(/-/g, "")}T${endHours}${endMinutes}00`;
+
+      const isPM = ext.type === "PM";
+      const tideLabel = isPM ? "Pleine Mer" : "Basse Mer";
+      const emoji = isPM ? "🌊" : "📉";
+      
+      const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== 0 && ext.coef !== ("" as any)) 
+        ? ` (Coef ${ext.coef})` 
+        : "";
+        
+      const summary = `${emoji} ${tideLabel}${coefText} : ${ext.height}m`;
+
+      const description = `${tideLabel} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
+
+      const uid = `${ext.date}-${ext.type}-${ext.time}-${siteId}@webapp-marees`;
+
+      icsLines.push("BEGIN:VEVENT");
+      icsLines.push(`UID:${uid}`);
+      icsLines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`);
+      icsLines.push(`DTSTART;TZID=Europe/Paris:${dtStartStr}`);
+      icsLines.push(`DTEND;TZID=Europe/Paris:${endDateStr}`);
+      icsLines.push(`SUMMARY:${summary}`);
+      icsLines.push(`DESCRIPTION:${description}`);
+      icsLines.push("END:VEVENT");
     }
 
     icsLines.push("END:VCALENDAR");
