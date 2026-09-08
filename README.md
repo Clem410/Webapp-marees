@@ -1,3 +1,37 @@
+# 🌊 Marées Sync
+
+A modern, responsive Next.js web application designed to easily find French port tidal information and synchronize 30-day rolling tide schedules directly into personal calendars via ICS download or Webcal subscription.
+
+## Creator & Ownership
+
+- **Author & Creator:** Clément Saux
+- **Status:** Proprietary software. All rights reserved.
+
+## Features
+
+- **Exhaustive Port Directory:** Instantaneous search and alphabetical selection dropdown covering all available French ports.
+- **Calendar Integration:** One-click download of `.ics` files or direct webcal calendar subscription links.
+- **Dark Glassmorphism UI:** Built with Tailwind CSS, offering a clean, modern, and fluid user experience.
+- **Automated Deployment:** Seamless local-to-GitHub-to-Vercel CI/CD workflow.
+
+## Tech Stack
+
+- **Framework:** Next.js (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **Data Source:** [api-maree.fr](https://api-maree.fr/) (Ifremer / PREVIMER harmonic components)
+
+## Data Attribution & Licensing
+
+- Tide data provided by **api-maree.fr** under the **CC BY** license.
+- Calculations derived from harmonic components by **Ifremer / PREVIMER**, also under the **CC BY** license.
+
+## Terms of Use
+
+This repository's source code is proprietary. You are welcome to view the code for educational or portfolio purposes, but reproduction, redistribution, modification, or commercial exploitation without explicit prior written consent from the author is strictly prohibited.
+
+------------------------------------------------------------------------------------
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
