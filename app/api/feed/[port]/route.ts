@@ -30,14 +30,12 @@ export async function GET(
     return new NextResponse("ID du port manquant", { status: 400 });
   }
 
-  // Récupération de la clé API enregistrée sur Vercel
   const apiKey = process.env.API_MAREE_KEY || process.env.API_KEY;
   if (!apiKey) {
     return new NextResponse("Clé API manquante dans la configuration Vercel", { status: 500 });
   }
 
   try {
-    // Fenêtre de requête : du jour J à J+30 (maximum autorisé par l'API)
     const today = new Date();
     const futureDate = new Date();
     futureDate.setDate(today.getDate() + 30);
@@ -46,7 +44,6 @@ export async function GET(
     const fromStr = formatDate(today);
     const toStr = formatDate(futureDate);
 
-    // Appel de l'endpoint officiel JSON d'api-maree.fr
     const apiUrl = `https://api-maree.fr/tide-extrema?site=${siteId}&from=${fromStr}&to=${toStr}&tz=Europe/Paris&key=${apiKey}`;
 
     const apiRes = await fetch(apiUrl, {
@@ -54,7 +51,7 @@ export async function GET(
         "User-Agent": "Webapp-Marees/1.0",
         "Accept": "application/json",
       },
-      next: { revalidate: 3600 }, // Cache d'une heure pour optimiser les quotas
+      next: { revalidate: 3600 },
     });
 
     if (!apiRes.ok) {
@@ -68,7 +65,6 @@ export async function GET(
     const json: TideApiResponse = await apiRes.json();
     const siteName = json.site_name || siteId;
 
-    // Construction du contenu iCal (.ics)
     let icsLines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -87,18 +83,23 @@ export async function GET(
           const [hours, minutes] = ext.time.split(":");
           const dtStartStr = `${day.date.replace(/-/g, "")}T${hours}${minutes}00`;
           
-          // Durée de 15 minutes par événement de marée
+          // Durée élargie à 30 minutes pour un meilleur rendu visuel dans les agendas
           const startDate = new Date(`${day.date}T${ext.time}:00`);
-          const endDate = new Date(startDate.getTime() + 15 * 60 * 1000);
+          const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
           const endHours = String(endDate.getHours()).padStart(2, "0");
           const endMinutes = String(endDate.getMinutes()).padStart(2, "0");
           const endDateStr = `${day.date.replace(/-/g, "")}T${endHours}${endMinutes}00`;
 
           const isPM = ext.type === "PM";
-          const tideLabel = isPM ? "Pleine Mer" : "Basse Mer";
-          const coefStr = ext.coef ? ` (Coef: ${ext.coef})` : "";
-          const summary = `${tideLabel}${coefStr} - ${ext.height}m`;
-          const description = `${tideLabel} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
+          
+          // Format compact et robuste pour éviter les coupures de texte dans l'UI
+          let summary = `📉 Basse Mer : ${ext.height}m`;
+          if (isPM) {
+            const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== ("" as any)) ? ` (Coef ${ext.coef})` : "";
+            summary = `🌊 Pleine Mer${coefText} : ${ext.height}m`;
+          }
+
+          const description = `${isPM ? "Pleine Mer" : "Basse Mer"} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
 
           const uid = `${day.date}-${ext.type}-${ext.time}-${siteId}@webapp-marees`;
 
