@@ -13,8 +13,10 @@ export default function MareesApp() {
   const [search, setSearch] = useState("");
   const [selectedPortId, setSelectedPortId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [origin, setOrigin] = useState("");
 
   useEffect(() => {
+    setOrigin(window.location.host);
     fetch("https://api-maree.fr/sites")
       .then((res) => res.json())
       .then((data) => {
@@ -42,7 +44,7 @@ export default function MareesApp() {
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-xl space-y-4">
         
-        {/* BLOC DE NAVIGATION (En dehors du bloc principal) */}
+        {/* BLOC DE NAVIGATION */}
         <div className="flex items-center justify-between bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3.5 shadow-xl">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -133,7 +135,7 @@ export default function MareesApp() {
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <a
-                    href={`https://api-maree.fr/v1/ics/${selectedPortId}`}
+                    href={`/api/feed/${selectedPortId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-600/20 transition-all duration-200"
@@ -141,7 +143,7 @@ export default function MareesApp() {
                     📥 Télécharger .ics
                   </a>
                   <a
-                    href={`webcal://api-maree.fr/v1/ics/${selectedPortId}`}
+                    href={`webcal://${origin}/api/feed/${selectedPortId}`}
                     className="flex-1 inline-flex items-center justify-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200"
                   >
                     📅 S'abonner (Webcal)

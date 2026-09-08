@@ -1,94 +1,89 @@
 import { NextResponse } from "next/server";
-import { createEvents, EventAttributes } from "ics";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ port: string }> }
-): Promise<Response> {
-  const { port: siteId } = await params;
-  const apiKey = process.env.API_MAREE_KEY;
-
-  if (!apiKey) {
-    return new NextResponse("Configuration serveur incomplète (API Key manquante)", {
-      status: 500,
-    });
-  }
-
-  // Calcul dynamique de la fenêtre de 30 jours glissants (Aujourd'hui -> J+30)
+  { params }: { params: { port: string } }
+) {
+  const siteId = params.port;
+  
+  // Calcul des 30 jours glissants (de aujourd'hui à J+30)
   const today = new Date();
-  const fromDate = today.toISOString().split("T")[0];
-
-  const futureDate = new Date();
-  futureDate.setDate(today.getDate() + 30);
-  const toDate = futureDate.toISOString().split("T")[0];
+  const from = today.toISOString().split("T")[0];
+  const future = new Date();
+  future.setDate(today.getDate() + 30);
+  const to = future.toISOString().split("T")[0];
 
   try {
-    const url = `https://api-maree.fr/tide-extrema?site=${siteId}&from=${fromDate}&to=${toDate}&tz=Europe/Paris&key=${apiKey}`;
-    
-    const response = await fetch(url, {
-      next: { revalidate: 43200 }, // Cache 12h
-    });
+    const apiRes = await fetch(
+      `https://api-maree.fr/tide-extrema?site=${siteId}&from=${from}&to=${to}&tz=Europe/Paris`
+    );
+    const data = await apiRes.json();
 
-    if (!response.ok) {
-      throw new Error(`Erreur API externe: ${response.status}`);
+    if (!data || !data.data) {
+      return new NextResponse("Port introuvable ou données indisponibles", { status: 404 });
     }
 
-    const json = await response.json();
-    const portTides = json.data || [];
-    const portName = siteId; // Nom par défaut, ou nettoyé si besoin
+    const portName = data.site_name || siteId;
 
-    const tidesData: EventAttributes[] = [];
+    let icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Marées Sync//Clément Saux//FR",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      `X-WR-CALNAME:Marées - ${portName}`,
+      "X-WR-TIMEZONE:Europe/Paris",
+    ];
 
-    for (const dayEntry of portTides) {
-      const [year, month, day] = dayEntry.date.split("-").map(Number);
+    data.data.forEach((dayObj: any) => {
+      const dateStr = dayObj.date.replace(/-/g, ""); // YYYYMMDD
+      if (dayObj.extrema && Array.isArray(dayObj.extrema)) {
+        dayObj.extrema.forEach((ext: any, idx: number) => {
+          const [hours, minutes] = ext.time.split(":");
+          const timeStr = `${hours}${minutes}00`;
+          const dtstart = `${dateStr}T${timeStr}`;
 
-      for (const extrema of dayEntry.extrema) {
-        const [hour, minute] = extrema.time.split(":").map(Number);
-        const isHighTide = extrema.type === "PM";
+          // Durée de l'événement fixée à 15 minutes pour l'agenda
+          const d = new Date(`${dayObj.date}T${ext.time}:00`);
+          d.setMinutes(d.getMinutes() + 15);
+          const endHours = String(d.getHours()).padStart(2, "0");
+          const endMins = String(d.getMinutes()).padStart(2, "0");
+          const dtend = `${dateStr}T${endHours}${endMins}00`;
 
-        const title = isHighTide
-          ? `🌊 PM ${extrema.coef ? `(Coeff. ${extrema.coef})` : ""} - ${portName}`
-          : `📉 BM - ${portName}`;
+          const isPM = ext.type === "PM";
+          const summary = isPM
+            ? `🌊 Pleine Mer : ${ext.height}m (Coef ${ext.coef || "N/C"})`
+            : `📉 Basse Mer : ${ext.height}m`;
 
-        const description = isHighTide
-          ? `Pleine Mer à ${portName}\nHauteur : ${extrema.height}m\nCoefficient : ${extrema.coef || "N/A"}`
-          : `Basse Mer à ${portName}\nHauteur : ${extrema.height}m`;
+          const description = `Port : ${portName}\\nType : ${isPM ? "Pleine Mer" : "Basse Mer"}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\n\\nDonnées fournies par api-maree.fr (Ifremer / PREVIMER)`;
+          const uid = `tide-${siteId}-${dateStr}-${idx}-${ext.time.replace(":", "")}@marees-sync`;
+          const nowIso = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 
-        tidesData.push({
-          start: [year, month, day, hour, minute],
-          duration: { minutes: 30 },
-          title,
-          description,
-          location: portName,
-          status: "CONFIRMED",
-          busyStatus: "FREE",
+          icsContent.push(
+            "BEGIN:VEVENT",
+            `UID:${uid}`,
+            `DTSTAMP:${nowIso}`,
+            `DTSTART;TZID=Europe/Paris:${dtstart}`,
+            `DTEND;TZID=Europe/Paris:${dtend}`,
+            `SUMMARY:${summary}`,
+            `DESCRIPTION:${description}`,
+            "END:VEVENT"
+          );
         });
       }
-    }
-
-    return new Promise<Response>((resolve) => {
-      createEvents(tidesData, (error, value) => {
-        if (error || !value) {
-          resolve(
-            new NextResponse("Erreur lors de la génération du calendrier", { status: 500 })
-          );
-          return;
-        }
-
-        resolve(
-          new NextResponse(value, {
-            status: 200,
-            headers: {
-              "Content-Type": "text/calendar; charset=utf-8",
-              "Content-Disposition": `inline; filename="marees-${siteId}.ics"`,
-              "Cache-Control": "s-maxage=43200, stale-while-revalidate=86400",
-            },
-          })
-        );
-      });
     });
-  } catch (error) {
-    console.error("Erreur de récupération des marées :", error);
-    return new NextResponse("Impossible de récupérer les données de marée", { status: 500 });
+
+    icsContent.push("END:VCALENDAR");
+
+    return new NextResponse(icsContent.join("\r\n"), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/calendar; charset=utf-8",
+        "Content-Disposition": `attachment; filename="marees-${siteId}-30-jours.ics"`,
+      },
+    });
+  } catch (err) {
+    console.error("Erreur API ICS", err);
+    return new NextResponse("Erreur interne du serveur", { status: 500 });
   }
 }
