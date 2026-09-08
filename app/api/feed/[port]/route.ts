@@ -91,15 +91,17 @@ export async function GET(
           const endDateStr = `${day.date.replace(/-/g, "")}T${endHours}${endMinutes}00`;
 
           const isPM = ext.type === "PM";
+          const tideLabel = isPM ? "Pleine Mer" : "Basse Mer";
+          const emoji = isPM ? "🌊" : "📉";
           
-          // Format compact et robuste pour éviter les coupures de texte dans l'UI
-          let summary = `📉 Basse Mer : ${ext.height}m`;
-          if (isPM) {
-            const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== ("" as any)) ? ` (Coef ${ext.coef})` : "";
-            summary = `🌊 Pleine Mer${coefText} : ${ext.height}m`;
-          }
+          // Affiche le coefficient pour PM et BM s'il est présent dans l'objet
+          const coefText = (ext.coef !== undefined && ext.coef !== null && ext.coef !== 0 && ext.coef !== ("" as any)) 
+            ? ` (Coef ${ext.coef})` 
+            : "";
+            
+          const summary = `${emoji} ${tideLabel}${coefText} : ${ext.height}m`;
 
-          const description = `${isPM ? "Pleine Mer" : "Basse Mer"} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
+          const description = `${tideLabel} à ${siteName}\\nHauteur : ${ext.height} m${ext.coef ? `\\nCoefficient : ${ext.coef}` : ""}\\nSource : api-maree.fr`;
 
           const uid = `${day.date}-${ext.type}-${ext.time}-${siteId}@webapp-marees`;
 
